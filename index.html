@@ -183,6 +183,24 @@ input[type=range]{width:100%;accent-color:var(--gold);cursor:pointer;}
 .skin-card canvas{border-radius:8px;}
 .skin-name{font-size:11px;font-weight:700;color:rgba(255,255,255,.7);text-align:center;}
 .skin-check{font-size:14px;height:18px;}
+
+/* ── TOUCH ZONES ── */
+#touchZones{position:absolute;inset:0;z-index:7;pointer-events:none;display:none;}
+#touchZones.on{display:block;}
+.tz{position:absolute;top:0;bottom:0;width:50%;pointer-events:all;touch-action:none;}
+.tz1{left:0;border-right:1px solid rgba(255,255,255,0);}
+.tz2{right:0;}
+.tz-label{position:absolute;bottom:8px;width:100%;text-align:center;font-size:10px;
+  font-weight:700;color:rgba(255,255,255,.15);letter-spacing:1px;text-transform:uppercase;pointer-events:none;}
+
+/* ── SETTINGS TABS ── */
+.set-tabs{display:flex;gap:0;width:100%;max-width:380px;background:rgba(255,255,255,.05);
+  border-radius:10px;padding:3px;border:1px solid var(--border);}
+.set-tab{flex:1;padding:8px 4px;text-align:center;font-size:12px;font-weight:700;
+  cursor:pointer;border-radius:8px;color:rgba(255,255,255,.4);transition:all .15s;border:none;background:none;}
+.set-tab.active{background:rgba(255,255,255,.12);color:#fff;}
+.set-panel{display:none;flex-direction:column;gap:12px;width:100%;max-width:380px;}
+.set-panel.on{display:flex;}
 </style>
 </head>
 <body>
@@ -281,45 +299,82 @@ input[type=range]{width:100%;accent-color:var(--gold);cursor:pointer;}
 
 <!-- SETTINGS -->
 <div class="screen" id="sSettings">
-  <div style="padding:16px;width:100%;max-width:380px;display:flex;flex-direction:column;gap:12px;">
-    <div style="font-size:16px;font-weight:900;padding:4px 0;">⚙️ Настройки</div>
+  <div style="padding:16px;width:100%;max-width:380px;display:flex;flex-direction:column;gap:12px;align-items:center;">
+    <div style="font-size:16px;font-weight:900;padding:4px 0;align-self:flex-start;">⚙️ Настройки управления</div>
 
-    <div class="set-row">
-      <span class="ico">🕹️</span>
-      <div class="lbl">Джойстик<span class="sub" id="joyLbl">Выключен</span></div>
-      <label class="toggle-wrap">
-        <input type="checkbox" id="joyToggle" onchange="toggleJoy(this.checked)">
-        <div class="toggle-track"></div>
-        <div class="toggle-knob"></div>
-      </label>
+    <!-- Вкладки -->
+    <div class="set-tabs">
+      <button class="set-tab active" id="stab-joy" onclick="switchSetTab('joy')">🕹️ Джойстик</button>
+      <button class="set-tab" id="stab-touch" onclick="switchSetTab('touch')">👆 Касание</button>
+      <button class="set-tab" id="stab-other" onclick="switchSetTab('other')">🔧 Прочее</button>
     </div>
 
-    <div class="set-row" id="joySizeRow" style="opacity:.4;pointer-events:none;">
-      <span class="ico">🔵</span>
-      <div class="lbl" style="flex:1">Размер джойстика<span class="sub" id="joySizeVal">Средний</span></div>
-      <input type="range" min="70" max="160" value="110" step="10" style="width:90px;accent-color:var(--gold);" oninput="changeJoySize(this.value)">
+    <!-- Панель: Джойстик -->
+    <div class="set-panel on" id="spanel-joy">
+      <div class="set-row">
+        <span class="ico">🕹️</span>
+        <div class="lbl">Джойстик<span class="sub" id="joyLbl">Выключен</span></div>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="joyToggle" onchange="toggleJoy(this.checked)">
+          <div class="toggle-track"></div><div class="toggle-knob"></div>
+        </label>
+      </div>
+      <div class="set-row" id="joySizeRow" style="opacity:.4;pointer-events:none;">
+        <span class="ico">🔵</span>
+        <div class="lbl" style="flex:1">Размер<span class="sub" id="joySizeVal">Средний</span></div>
+        <input type="range" min="70" max="160" value="110" step="10" style="width:90px;accent-color:var(--gold);" oninput="changeJoySize(this.value)">
+      </div>
+      <div class="set-row" id="joy2Row" style="opacity:.4;pointer-events:none;">
+        <span class="ico">👥</span>
+        <div class="lbl">2-й джойстик<span class="sub">Для игры с другом</span></div>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="joy2Toggle">
+          <div class="toggle-track"></div><div class="toggle-knob"></div>
+        </label>
+      </div>
     </div>
 
-    <div class="set-row" id="joy2Row" style="opacity:.4;pointer-events:none;">
-      <span class="ico">👥</span>
-      <div class="lbl">Второй джойстик<span class="sub">Для игры с другом</span></div>
-      <label class="toggle-wrap">
-        <input type="checkbox" id="joy2Toggle">
-        <div class="toggle-track"></div>
-        <div class="toggle-knob"></div>
-      </label>
+    <!-- Панель: Касание -->
+    <div class="set-panel" id="spanel-touch">
+      <div style="font-size:12px;color:rgba(255,255,255,.45);line-height:1.6;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;">
+        Касание делит экран на две половины.<br>
+        Левая — Игрок 1, правая — Игрок 2.<br>
+        Тяни пальцем в любую сторону — персонаж следует за пальцем.
+      </div>
+      <div class="set-row">
+        <span class="ico">👆</span>
+        <div class="lbl">Касание: Игрок 1<span class="sub" id="touch1Lbl">Выключено</span></div>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="touch1Toggle" onchange="toggleTouch(1,this.checked)">
+          <div class="toggle-track"></div><div class="toggle-knob"></div>
+        </label>
+      </div>
+      <div class="set-row">
+        <span class="ico">👆</span>
+        <div class="lbl">Касание: Игрок 2<span class="sub" id="touch2Lbl">Выключено</span></div>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="touch2Toggle" onchange="toggleTouch(2,this.checked)">
+          <div class="toggle-track"></div><div class="toggle-knob"></div>
+        </label>
+      </div>
+      <div style="font-size:11px;color:rgba(255,255,255,.3);text-align:center;">
+        Можно включить одновременно джойстик и касание
+      </div>
     </div>
 
-    <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:1px;margin-top:4px;">Firebase (онлайн)</div>
-    <div style="font-size:12px;color:rgba(255,255,255,.4);line-height:1.6;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;">
-      Для онлайна и таблицы лидеров нужен <strong style="color:#fff">бесплатный Firebase</strong>.<br>
-      Открой файл <code style="color:#88bbff">index.html</code> и замени строки в разделе <code style="color:#88bbff">FIREBASE CONFIG</code> своими данными из консоли Firebase.
-    </div>
-    <div style="font-size:11px;color:rgba(255,255,255,.3);line-height:1.7;">
-      1. Зайди на <strong style="color:#88bbff">firebase.google.com</strong><br>
-      2. Создай проект → Realtime Database<br>
-      3. Скопируй конфиг в index.html<br>
-      4. Правила базы: read/write = true
+    <!-- Панель: Прочее -->
+    <div class="set-panel" id="spanel-other">
+      <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:1px;">Firebase (онлайн)</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.4);line-height:1.6;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;">
+        Для онлайна и таблицы лидеров нужен <strong style="color:#fff">бесплатный Firebase</strong>.<br>
+        Открой <code style="color:#88bbff">index.html</code> и замени <code style="color:#88bbff">FIREBASE CONFIG</code>.
+      </div>
+      <div style="font-size:11px;color:rgba(255,255,255,.3);line-height:1.8;">
+        1. <strong style="color:#88bbff">firebase.google.com</strong><br>
+        2. Создай проект → Realtime Database<br>
+        3. Скопируй конфиг в index.html<br>
+        4. Правила: <code>.read/.write = true</code>, <code>leaderboard .indexOn: elo</code>
+      </div>
     </div>
   </div>
 </div>
@@ -373,6 +428,12 @@ input[type=range]{width:100%;accent-color:var(--gold);cursor:pointer;}
       <div class="joy-inner" id="joy2inner"></div>
     </div>
   </div>
+</div>
+
+<!-- ── TOUCH ZONES ── -->
+<div id="touchZones">
+  <div class="tz tz1" id="tz1"><div class="tz-label">← игрок 1</div></div>
+  <div class="tz tz2" id="tz2"><div class="tz-label">игрок 2 →</div></div>
 </div>
 
 <!-- SKINS -->
@@ -1076,6 +1137,95 @@ function changeJoySize(v){
 }
 window.changeJoySize = changeJoySize;
 
+
+// ══════════════════════════════════════════════════
+//  TOUCH INPUT (касание экрана)
+// ══════════════════════════════════════════════════
+const touchInput = {
+  p1: { active:false, dx:0, dy:0, startX:0, startY:0, id:null },
+  p2: { active:false, dx:0, dy:0, startX:0, startY:0, id:null }
+};
+let touch1Enabled = false, touch2Enabled = false;
+
+function toggleTouch(player, on){
+  if(player===1){ touch1Enabled=on; document.getElementById('touch1Lbl').textContent=on?'Включено':'Выключено'; }
+  else          { touch2Enabled=on; document.getElementById('touch2Lbl').textContent=on?'Включено':'Выключено'; }
+  updateTouchZones();
+}
+window.toggleTouch = toggleTouch;
+
+function updateTouchZones(){
+  const tz = document.getElementById('touchZones');
+  const tz2 = document.getElementById('tz2');
+  if(gameState!=='playing'){ tz.classList.remove('on'); return; }
+  tz.classList.toggle('on', touch1Enabled || touch2Enabled);
+  tz2.style.pointerEvents = touch2Enabled ? 'all' : 'none';
+}
+
+function setupTouchZones(){
+  const tz1 = document.getElementById('tz1');
+  const tz2 = document.getElementById('tz2');
+
+  function startTouch(state, e, el){
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    if(state.id !== null) return;
+    state.id = t.identifier;
+    state.startX = t.clientX;
+    state.startY = t.clientY;
+    state.active = true;
+    state.dx = 0; state.dy = 0;
+  }
+  function moveTouch(state, e){
+    e.preventDefault();
+    for(const t of e.changedTouches){
+      if(t.identifier !== state.id) continue;
+      const dx = t.clientX - state.startX;
+      const dy = t.clientY - state.startY;
+      const dist = Math.hypot(dx, dy);
+      const maxR = 60;
+      if(dist > 6){
+        state.dx = Math.max(-1, Math.min(1, dx/maxR));
+        state.dy = Math.max(-1, Math.min(1, dy/maxR));
+      } else {
+        state.dx = 0; state.dy = 0;
+      }
+      // Сдвигаем стартовую точку если палец ушёл далеко (следящий джойстик)
+      if(dist > maxR){
+        state.startX += dx - dx/dist*maxR;
+        state.startY += dy - dy/dist*maxR;
+      }
+    }
+  }
+  function endTouch(state, e){
+    for(const t of e.changedTouches){
+      if(t.identifier === state.id){
+        state.active=false; state.dx=0; state.dy=0; state.id=null;
+      }
+    }
+  }
+
+  tz1.addEventListener('touchstart', e=>{ if(touch1Enabled) startTouch(touchInput.p1,e,tz1); },{passive:false});
+  tz1.addEventListener('touchmove',  e=>{ if(touch1Enabled) moveTouch(touchInput.p1,e); },{passive:false});
+  tz1.addEventListener('touchend',   e=>{ endTouch(touchInput.p1,e); },{passive:false});
+  tz1.addEventListener('touchcancel',e=>{ endTouch(touchInput.p1,e); },{passive:false});
+
+  tz2.addEventListener('touchstart', e=>{ if(touch2Enabled) startTouch(touchInput.p2,e,tz2); },{passive:false});
+  tz2.addEventListener('touchmove',  e=>{ if(touch2Enabled) moveTouch(touchInput.p2,e); },{passive:false});
+  tz2.addEventListener('touchend',   e=>{ endTouch(touchInput.p2,e); },{passive:false});
+  tz2.addEventListener('touchcancel',e=>{ endTouch(touchInput.p2,e); },{passive:false});
+}
+setupTouchZones();
+
+// ── Настройки: переключение вкладок ──
+function switchSetTab(name){
+  ['joy','touch','other'].forEach(n=>{
+    document.getElementById('stab-'+n).classList.toggle('active', n===name);
+    document.getElementById('spanel-'+n).classList.toggle('on', n===name);
+  });
+}
+window.switchSetTab = switchSetTab;
+
 function setupJoystick(outerId, innerId, stateKey){
   const outer = document.getElementById(outerId);
   const inner = document.getElementById(innerId);
@@ -1185,12 +1335,14 @@ function getDir1(){
   let x = (K['KeyD']?1:0)-(K['KeyA']?1:0);
   let y = (K['KeyS']?1:0)-(K['KeyW']?1:0);
   if(joyEnabled && joyState.j1.active){ x=joyState.j1.dx; y=joyState.j1.dy; }
+  if(touchInput.p1.active){ x=touchInput.p1.dx; y=touchInput.p1.dy; }
   return {x,y};
 }
 function getDir2(){
   let x = (K['ArrowRight']?1:0)-(K['ArrowLeft']?1:0);
   let y = (K['ArrowDown']?1:0)-(K['ArrowUp']?1:0);
   if(joyEnabled && document.getElementById('joy2Toggle').checked && joyState.j2.active){ x=joyState.j2.dx; y=joyState.j2.dy; }
+  if(touchInput.p2.active){ x=touchInput.p2.dx; y=touchInput.p2.dy; }
   return {x,y};
 }
 function norm(v){ const l=Math.hypot(v.x,v.y); return l<0.001?{x:0,y:0}:{x:v.x/l,y:v.y/l}; }
@@ -1237,6 +1389,7 @@ function startGame(m){
     jc.style.display='block';
     document.getElementById('joy2wrap').style.display = m==='friend'&&document.getElementById('joy2Toggle').checked ? 'block':'none';
   }
+  updateTouchZones();
 
   resize(); initObjs(); updateHUD();
   if(raf) cancelAnimationFrame(raf);
@@ -1256,6 +1409,7 @@ function goGameMenu(){
   canvas.style.display='none';
   document.getElementById('hud').style.display='none';
   document.getElementById('joyContainer').style.display='none';
+  document.getElementById('touchZones').classList.remove('on');
   document.getElementById('winOv').classList.add('hide');
   document.getElementById('pauseOv').classList.add('hide');
   document.getElementById('nav').classList.add('on');
@@ -1297,11 +1451,14 @@ function movePlayer(p,dir,dt,rightHalf=false){
   p.vy+=(n.y*PSPEED-p.vy)*(1-Math.pow(DAMP,dt*60));
   p.x+=p.vx*dt; p.y+=p.vy*dt;
   const m=p.r+1;
-  // Зональное ограничение — каждый игрок в своей половине
+  // Жёсткие границы поля + зональное ограничение
   const xMin = rightHalf ? CX+m : RX+m;
   const xMax = rightHalf ? RX+RW-m : CX-m;
-  p.x=Math.max(xMin, Math.min(xMax, p.x));
-  p.y=Math.max(RY+m, Math.min(RY+RH-m, p.y));
+  // Если пытается выйти — останавливаем скорость тоже
+  if(p.x < xMin){ p.x=xMin; p.vx=Math.max(0,p.vx); }
+  if(p.x > xMax){ p.x=xMax; p.vx=Math.min(0,p.vx); }
+  if(p.y < RY+m){ p.y=RY+m; p.vy=Math.max(0,p.vy); }
+  if(p.y > RY+RH-m){ p.y=RY+RH-m; p.vy=Math.min(0,p.vy); }
 }
 
 function botAI(dt){

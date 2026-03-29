@@ -201,6 +201,28 @@ input[type=range]{width:100%;accent-color:var(--gold);cursor:pointer;}
 .set-tab.active{background:rgba(255,255,255,.12);color:#fff;}
 .set-panel{display:none;flex-direction:column;gap:12px;width:100%;max-width:380px;}
 .set-panel.on{display:flex;}
+
+/* ── ONLINE PLAYERS SCREEN ── */
+#sPlayers{padding:16px;gap:12px;align-items:stretch;max-width:440px;margin:0 auto;width:100%;}
+.online-count-card{background:linear-gradient(135deg,rgba(68,136,255,.18),rgba(68,136,255,.06));
+  border:1px solid rgba(68,136,255,.35);border-radius:16px;padding:18px;text-align:center;display:flex;
+  flex-direction:column;align-items:center;gap:6px;}
+.online-count-num{font-size:48px;font-weight:900;color:#4488ff;line-height:1;}
+.online-count-lbl{font-size:13px;color:rgba(255,255,255,.5);}
+.online-count-dot{width:10px;height:10px;border-radius:50%;background:#44dd88;
+  box-shadow:0 0 8px #44dd88;display:inline-block;margin-right:6px;animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.players-list-title{font-size:12px;font-weight:700;color:rgba(255,255,255,.4);
+  text-transform:uppercase;letter-spacing:1px;}
+.player-online-row{background:var(--panel);border:1px solid var(--border);border-radius:10px;
+  padding:10px 14px;display:flex;align-items:center;gap:10px;}
+.player-online-row.in-queue{border-color:rgba(240,192,48,.4);}
+.player-online-row.in-game{border-color:rgba(68,221,136,.3);}
+.pol-status{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;}
+.pol-status.queue{background:rgba(240,192,48,.2);color:var(--gold);}
+.pol-status.game{background:rgba(68,221,136,.15);color:#44dd88;}
+.pol-name{flex:1;font-size:13px;font-weight:700;}
+.pol-elo{font-size:12px;color:var(--gold);font-weight:700;}
 </style>
 </head>
 <body>
@@ -445,12 +467,30 @@ input[type=range]{width:100%;accent-color:var(--gold);cursor:pointer;}
   <div class="skins-grid" id="skinGrid2"></div>
 </div>
 
+<!-- ONLINE PLAYERS -->
+<div class="screen" id="sPlayers">
+  <div class="online-count-card">
+    <div class="online-count-num" id="onlineCountNum">0</div>
+    <div class="online-count-lbl"><span class="online-count-dot"></span>игроков сейчас онлайн</div>
+    <div style="font-size:11px;color:rgba(255,255,255,.3);margin-top:4px;" id="onlineCountSub">Обновляется в реальном времени</div>
+  </div>
+  <div class="players-list-title">В очереди</div>
+  <div id="queueList" style="display:flex;flex-direction:column;gap:8px;">
+    <div style="color:rgba(255,255,255,.3);font-size:13px;text-align:center;padding:12px;">Очередь пуста</div>
+  </div>
+  <div class="players-list-title" style="margin-top:4px;">Играют сейчас</div>
+  <div id="inGameList" style="display:flex;flex-direction:column;gap:8px;">
+    <div style="color:rgba(255,255,255,.3);font-size:13px;text-align:center;padding:12px;">Нет активных матчей</div>
+  </div>
+</div>
+
 <!-- ── NAV ── -->
 <div id="nav">
   <button class="ntab active" id="tab-sMenu" onclick="goTab('sMenu')"><span class="nico">🏠</span>Меню</button>
   <button class="ntab" id="tab-sTrophies" onclick="goTab('sTrophies')"><span class="nico">🏆</span>Трофеи</button>
   <button class="ntab" id="tab-sLeader" onclick="goTab('sLeader');loadLeaderboard()"><span class="nico">📊</span>Топ</button>
   <button class="ntab" id="tab-sOnline" onclick="goTab('sOnline')"><span class="nico">🌐</span>Онлайн</button>
+  <button class="ntab" id="tab-sPlayers" onclick="goTab('sPlayers');startWatchPlayers()"><span class="nico">👥</span>Онлайн</button>
   <button class="ntab" id="tab-sSkins" onclick="goTab('sSkins');renderSkinGrids()"><span class="nico">🎨</span>Скины</button>
   <button class="ntab" id="tab-sSettings" onclick="goTab('sSettings')"><span class="nico">⚙️</span>Настройки</button>
 </div>
@@ -552,6 +592,31 @@ window._fb = {
       const matches = {};
       snap.forEach(c => { matches[c.key] = c.val(); });
       cb(matches);
+    });
+  },
+  // Presence — кто онлайн
+  setPresence: async (uid, name, elo, status) => {
+    if(!firebaseOk) return;
+    await set(ref(db, `presence/${uid}`), { name, elo, status, ts: Date.now() });
+  },
+  removePresence: async (uid) => {
+    if(!firebaseOk) return;
+    await remove(ref(db, `presence/${uid}`));
+  },
+  watchPresence: (cb) => {
+    if(!firebaseOk) return ()=>{};
+    return onValue(ref(db, 'presence'), snap => {
+      const players = [];
+      snap.forEach(c => players.push({ uid: c.key, ...c.val() }));
+      cb(players);
+    });
+  },
+  watchQueuePublic: (cb) => {
+    if(!firebaseOk) return ()=>{};
+    return onValue(ref(db, 'queue'), snap => {
+      const players = [];
+      snap.forEach(c => players.push({ uid: c.key, ...c.val() }));
+      cb(players);
     });
   }
 };
@@ -869,7 +934,7 @@ if(profile.name === 'Игрок') setTimeout(openNameDialog, 600);
 // ══════════════════════════════════════════════════
 //  NAV TABS
 // ══════════════════════════════════════════════════
-const screens = ['sMenu','sTrophies','sLeader','sOnline','sSkins','sSettings'];
+const screens = ['sMenu','sTrophies','sLeader','sOnline','sPlayers','sSkins','sSettings'];
 function goTab(id){
   screens.forEach(s=>{
     document.getElementById(s).classList.toggle('on', s===id);
@@ -925,81 +990,89 @@ window.loadLeaderboard = loadLeaderboard;
 // ══════════════════════════════════════════════════
 //  MATCHMAKING + ONLINE GAME  (Firebase Realtime)
 // ══════════════════════════════════════════════════
-let mmUnsub = null, mmMatchUnsub = null, mmInterval = null, mmSec = 0;
-let onlineMatchId = null, onlineRole = null;
-let onlineOpponent = null;
-// push interval for host
-let onlinePushInterval = null;
+let mmUnsub=null, mmMatchUnsub=null, mmInterval=null, mmSec=0;
+let onlineMatchId=null, onlineRole=null, onlineOpponent=null;
+let onlinePushInterval=null;
+let _guestDx=0, _guestDy=0;
 
+// ── Присутствие (появляемся онлайн) ──
+function goOnline(){
+  if(window._fb?.ok())
+    window._fb.setPresence(profile.uid, profile.name, profile.elo, 'online');
+}
+function goOffline(){
+  if(window._fb?.ok())
+    window._fb.removePresence(profile.uid);
+}
+window.addEventListener('beforeunload', goOffline);
+
+// ── Поиск матча ──
 window.findMatch = async function(){
-  if(!window._fb?.ok()){
-    alert('Firebase не подключён!');
-    return;
-  }
+  if(!window._fb?.ok()){ alert('Firebase не подключён!'); return; }
+
   document.getElementById('onlineIdle').style.display='none';
   document.getElementById('mmBox').style.display='flex';
-  document.getElementById('mmStatus').textContent = 'Поиск соперника...';
-  mmSec=0;
-  clearInterval(mmInterval);
-  mmInterval = setInterval(()=>{
+  document.getElementById('mmStatus').textContent='Поиск соперника...';
+  mmSec=0; clearInterval(mmInterval);
+  mmInterval=setInterval(()=>{
     mmSec++;
-    const m=Math.floor(mmSec/60), s=mmSec%60;
+    const m=Math.floor(mmSec/60),s=mmSec%60;
     document.getElementById('mmTimer').textContent=`${m}:${s.toString().padStart(2,'0')}`;
-  }, 1000);
+  },1000);
+
+  // Обновляем присутствие
+  await window._fb.setPresence(profile.uid, profile.name, profile.elo, 'searching');
 
   // Записываемся в очередь
   await window._fb.joinQueue(profile.uid, profile.name, profile.elo);
 
-  // Слушаем очередь — ищем соперника
-  mmUnsub = window._fb.watchQueue(async players => {
-    const others = players.filter(p => p.uid !== profile.uid);
-    if(others.length === 0) return;
+  // Слушаем очередь
+  if(mmUnsub){ mmUnsub(); mmUnsub=null; }
+  mmUnsub = window._fb.watchQueue(async players=>{
+    const others = players.filter(p=>p.uid!==profile.uid);
+    if(others.length===0) return;
 
-    const opponent = others.sort((a,b) =>
-      Math.abs(a.elo - profile.elo) - Math.abs(b.elo - profile.elo)
-    )[0];
+    // Сортируем по близости Эло
+    const opponent = others.sort((a,b)=>Math.abs(a.elo-profile.elo)-Math.abs(b.elo-profile.elo))[0];
 
+    // Определяем кто хост по uid (меньший = хост)
     const amHost = profile.uid < opponent.uid;
-    const matchId = [profile.uid, opponent.uid].sort().join('_vs_');
+    const matchId = [profile.uid, opponent.uid].sort().join('__vs__');
 
     if(amHost){
-      // Я хост — создаю матч
+      // Я хост — останавливаем слушание очереди, создаём матч
       if(mmUnsub){ mmUnsub(); mmUnsub=null; }
-      document.getElementById('mmStatus').textContent = 'Соперник найден! Запуск...';
+      document.getElementById('mmStatus').textContent='Соперник найден! Запуск...';
+
       await window._fb.leaveQueue(profile.uid);
+      await window._fb.setPresence(profile.uid, profile.name, profile.elo, 'playing');
+
       await window._fb.createMatch(matchId, {
-        host:  { uid: profile.uid,   name: profile.name,   elo: profile.elo   },
-        guest: { uid: opponent.uid,  name: opponent.name,  elo: opponent.elo  },
-        state: 'playing',
-        sc1:0, sc2:0,
-        px1: 0, py1: 0,
-        px2: 0, py2: 0,
-        puckX: 0, puckY: 0,
-        ts: Date.now()
+        host:  {uid:profile.uid,  name:profile.name,  elo:profile.elo},
+        guest: {uid:opponent.uid, name:opponent.name, elo:opponent.elo},
+        state: 'playing', sc1:0, sc2:0,
+        px1:0,py1:0,px2:0,py2:0,puckX:0,puckY:0,
+        pvx:0,pvy:0, timeLeft:GAME_SEC, ts:Date.now()
       });
+
       clearInterval(mmInterval);
-      onlineMatchId = matchId;
-      onlineRole = 'host';
-      onlineOpponent = opponent;
-      _startOnlineGame(matchId, 'host', opponent);
+      onlineMatchId=matchId; onlineRole='host'; onlineOpponent=opponent;
+      _startOnlineGame(matchId,'host',opponent);
+
     } else {
-      // Я гость — жду появления матча
+      // Я гость — жду пока хост создаст матч
+      document.getElementById('mmStatus').textContent='Соперник найден! Подключение...';
       if(mmMatchUnsub) return;
-      mmMatchUnsub = window._fb.watchMatches(matches => {
-        // Ищем матч где я участвую как guest
-        for(const [id, m] of Object.entries(matches)){
-          if(m && m.guest && m.guest.uid === profile.uid && m.state === 'playing'){
-            if(mmUnsub){ mmUnsub(); mmUnsub=null; }
-            if(mmMatchUnsub){ mmMatchUnsub(); mmMatchUnsub=null; }
-            clearInterval(mmInterval);
-            window._fb.leaveQueue(profile.uid);
-            onlineMatchId = id;
-            onlineRole = 'guest';
-            onlineOpponent = m.host;
-            _startOnlineGame(id, 'guest', m.host);
-            return;
-          }
-        }
+
+      mmMatchUnsub = window._fb.watchMatch(matchId, data=>{
+        if(!data || data.state!=='playing') return;
+        if(mmMatchUnsub){ mmMatchUnsub(); mmMatchUnsub=null; }
+        if(mmUnsub){ mmUnsub(); mmUnsub=null; }
+        clearInterval(mmInterval);
+        window._fb.leaveQueue(profile.uid);
+        window._fb.setPresence(profile.uid, profile.name, profile.elo, 'playing');
+        onlineMatchId=matchId; onlineRole='guest'; onlineOpponent=data.host;
+        _startOnlineGame(matchId,'guest',data.host);
       });
     }
   });
@@ -1010,21 +1083,22 @@ window.cancelMatch = function(){
   if(mmMatchUnsub){ mmMatchUnsub(); mmMatchUnsub=null; }
   clearInterval(mmInterval);
   window._fb?.leaveQueue(profile.uid);
+  window._fb?.setPresence(profile.uid, profile.name, profile.elo, 'online');
   document.getElementById('mmBox').style.display='none';
   document.getElementById('onlineIdle').style.display='flex';
 };
 
 // ── Запуск онлайн-игры ──
 function _startOnlineGame(matchId, role, opponent){
-  // Используем тот же движок, но:
-  // HOST: запускает физику, пушит состояние ~20 раз в сек
-  // GUEST: читает состояние, управляет только своим игроком (p2)
-  gameMode = role === 'host' ? 'online_host' : 'online_guest';
-  gameState = 'playing';
+  gameMode = role==='host' ? 'online_host' : 'online_guest';
+  gameState='playing';
   sc1=0; sc2=0; timeLeft=GAME_SEC; lastTs=0; goalCD=0;
 
   document.getElementById('nav').classList.remove('on');
-  screens.forEach(s=>{ document.getElementById(s).classList.remove('on'); document.getElementById(s).style.display='none'; });
+  screens.forEach(s=>{
+    document.getElementById(s).classList.remove('on');
+    document.getElementById(s).style.display='none';
+  });
   document.getElementById('hud').style.display='flex';
   canvas.style.display='block';
   document.getElementById('winOv').classList.add('hide');
@@ -1032,82 +1106,129 @@ function _startOnlineGame(matchId, role, opponent){
   document.getElementById('mmBox').style.display='none';
   document.getElementById('onlineIdle').style.display='flex';
 
-  // Имена в HUD
-  if(role === 'host'){
-    document.getElementById('n1').textContent = profile.name;
-    document.getElementById('n2').textContent = opponent.name;
+  if(role==='host'){
+    document.getElementById('n1').textContent=profile.name;
+    document.getElementById('n2').textContent=opponent.name;
   } else {
-    document.getElementById('n1').textContent = opponent.name;
-    document.getElementById('n2').textContent = profile.name;
+    document.getElementById('n1').textContent=opponent.name;
+    document.getElementById('n2').textContent=profile.name;
   }
 
   if(joyEnabled){
     document.getElementById('joyContainer').style.display='block';
     document.getElementById('joy2wrap').style.display='none';
   }
-
+  updateTouchZones();
   resize(); initObjs(); updateHUD();
 
-  if(role === 'host'){
-    // Хост пушит состояние игры каждые 50мс
+  if(role==='host'){
+    // Хост: считает физику, пушит состояние 20 раз/сек
     clearInterval(onlinePushInterval);
-    onlinePushInterval = setInterval(async ()=>{
-      if(gameState !== 'playing') return;
-      await window._fb.updateMatch(matchId, {
-        state: 'playing',
-        sc1, sc2,
-        timeLeft: Math.round(timeLeft),
-        px1: Math.round(p1.x), py1: Math.round(p1.y),
-        vx1: Math.round(p1.vx), vy1: Math.round(p1.vy),
-        px2: Math.round(p2.x), py2: Math.round(p2.y),
-        vx2: Math.round(p2.vx), vy2: Math.round(p2.vy),
-        puckX: Math.round(puck.x), puckY: Math.round(puck.y),
-        pvx: Math.round(puck.vx), pvy: Math.round(puck.vy),
-        ts: Date.now()
+    onlinePushInterval=setInterval(async()=>{
+      if(gameState!=='playing') return;
+      await window._fb.updateMatch(matchId,{
+        state:'playing', sc1, sc2,
+        timeLeft:Math.round(timeLeft),
+        px1:Math.round(p1.x), py1:Math.round(p1.y),
+        vx1:Math.round(p1.vx), vy1:Math.round(p1.vy),
+        px2:Math.round(p2.x), py2:Math.round(p2.y),
+        vx2:Math.round(p2.vx), vy2:Math.round(p2.vy),
+        puckX:Math.round(puck.x), puckY:Math.round(puck.y),
+        pvx:Math.round(puck.vx), pvy:Math.round(puck.vy),
+        ts:Date.now()
       });
-    }, 50);
+    },50);
 
-    // Слушаем ввод гостя (его направление)
-    window._fb.watchMatch(matchId + '_guest_input', data => {
-      if(!data) return;
-      // Применяем ввод гостя к p2 напрямую
-      if(typeof data.dx === 'number'){
-        _guestDx = data.dx; _guestDy = data.dy;
+    // Слушаем ввод гостя
+    window._fb.watchMatch(matchId+'__guest_input', data=>{
+      if(data && typeof data.dx==='number'){
+        _guestDx=data.dx; _guestDy=data.dy;
       }
     });
+
   } else {
-    // Гость слушает состояние от хоста и применяет
-    window._fb.watchMatch(matchId, data => {
-      if(!data || data.state !== 'playing') return;
-      // Применяем позиции от хоста
-      p1.x = data.px1 || CX-RW*0.28; p1.y = data.py1 || CY;
-      p1.vx = data.vx1||0; p1.vy = data.vy1||0;
-      p2.x = data.px2 || CX+RW*0.28; p2.y = data.py2 || CY;
-      puck.x = data.puckX || CX; puck.y = data.puckY || CY;
-      puck.vx = data.pvx||0; puck.vy = data.pvy||0;
-      sc1 = data.sc1||0; sc2 = data.sc2||0;
-      if(data.timeLeft) timeLeft = data.timeLeft;
+    // Гость: читает состояние от хоста
+    window._fb.watchMatch(matchId, data=>{
+      if(!data || data.state!=='playing') return;
+      p1.x=data.px1||CX; p1.y=data.py1||CY;
+      p1.vx=data.vx1||0; p1.vy=data.vy1||0;
+      p2.x=data.px2||CX; p2.y=data.py2||CY;
+      puck.x=data.puckX||CX; puck.y=data.puckY||CY;
+      puck.vx=data.pvx||0; puck.vy=data.pvy||0;
+      sc1=data.sc1||0; sc2=data.sc2||0;
+      if(data.timeLeft) timeLeft=data.timeLeft;
       updateHUD();
+      // Проверяем конец игры
+      if(sc1>=MAX_G||sc2>=MAX_G) endGame();
     });
 
-    // Гость пушит свой ввод
+    // Гость пушит свой ввод хосту
     clearInterval(onlinePushInterval);
-    onlinePushInterval = setInterval(async ()=>{
-      if(gameState !== 'playing') return;
-      const dir = getDir2();
-      await window._fb.updateMatch(matchId + '_guest_input', {
-        dx: dir.x, dy: dir.y, ts: Date.now()
+    onlinePushInterval=setInterval(async()=>{
+      if(gameState!=='playing') return;
+      const dir=getDir1(); // гость управляет p2 на экране хоста
+      await window._fb.updateMatch(matchId+'__guest_input',{
+        dx:dir.x, dy:dir.y, ts:Date.now()
       });
-    }, 50);
+    },50);
   }
 
   if(raf) cancelAnimationFrame(raf);
-  raf = requestAnimationFrame(loop);
+  raf=requestAnimationFrame(loop);
 }
 
-// Ввод гостя для хоста
-let _guestDx=0, _guestDy=0;
-function getGuestDir(){ return { x:_guestDx, y:_guestDy }; }
+// ── Экран "Игроки онлайн" ──
+let playersWatchUnsub=null, queueWatchUnsub=null;
+
+function startWatchPlayers(){
+  if(!window._fb?.ok()){
+    document.getElementById('onlineCountNum').textContent='?';
+    document.getElementById('onlineCountSub').textContent='Firebase не подключён';
+    return;
+  }
+
+  // Слушаем присутствие
+  if(playersWatchUnsub){ playersWatchUnsub(); }
+  playersWatchUnsub = window._fb.watchPresence(players=>{
+    const now = Date.now();
+    // Фильтруем — только активные за последние 30 сек
+    const active = players.filter(p=>now-p.ts<30000);
+    document.getElementById('onlineCountNum').textContent=active.length;
+  });
+
+  // Слушаем очередь
+  if(queueWatchUnsub){ queueWatchUnsub(); }
+  queueWatchUnsub = window._fb.watchQueuePublic(players=>{
+    const qList=document.getElementById('queueList');
+    if(!players.length){
+      qList.innerHTML='<div style="color:rgba(255,255,255,.3);font-size:13px;text-align:center;padding:12px;">Очередь пуста</div>';
+      return;
+    }
+    qList.innerHTML=players.map(p=>`
+      <div class="player-online-row in-queue">
+        <span class="pol-status queue">В поиске</span>
+        <span class="pol-name">${p.name||'Игрок'}</span>
+        <span class="pol-elo">🏆 ${p.elo||0}</span>
+      </div>`).join('');
+  });
+
+  // Слушаем матчи
+  window._fb.watchMatches(matches=>{
+    const gmList=document.getElementById('inGameList');
+    const active=Object.values(matches).filter(m=>m&&m.state==='playing');
+    if(!active.length){
+      gmList.innerHTML='<div style="color:rgba(255,255,255,.3);font-size:13px;text-align:center;padding:12px;">Нет активных матчей</div>';
+      return;
+    }
+    gmList.innerHTML=active.map(m=>`
+      <div class="player-online-row in-game">
+        <span class="pol-status game">Играют</span>
+        <span class="pol-name">${m.host?.name||'?'} vs ${m.guest?.name||'?'}</span>
+        <span class="pol-elo">${m.sc1||0}:${m.sc2||0}</span>
+      </div>`).join('');
+  });
+}
+window.startWatchPlayers=startWatchPlayers;
 
 // ══════════════════════════════════════════════════
 //  JOYSTICK SETUP
@@ -1410,6 +1531,8 @@ function goGameMenu(){
   document.getElementById('hud').style.display='none';
   document.getElementById('joyContainer').style.display='none';
   document.getElementById('touchZones').classList.remove('on');
+  if(playersWatchUnsub){ playersWatchUnsub(); playersWatchUnsub=null; }
+  if(queueWatchUnsub){ queueWatchUnsub(); queueWatchUnsub=null; }
   document.getElementById('winOv').classList.add('hide');
   document.getElementById('pauseOv').classList.add('hide');
   document.getElementById('nav').classList.add('on');
@@ -1740,6 +1863,7 @@ resize();
 
 // Firebase ready event
 window.addEventListener('firebaseReady', ()=>{
+  setTimeout(goOnline, 1000);
   const badge = document.getElementById('onlineBadge');
   if(window._fb?.ok()){
     badge.textContent='✅ Firebase подключён — поиск доступен';
